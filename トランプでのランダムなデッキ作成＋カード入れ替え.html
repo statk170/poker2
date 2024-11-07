@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ランダムカード選択</title>
+    <style>
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .card {
+            display: inline-block;
+            margin: 5px;
+            width: 70px;
+            height: 100px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .selected {
+            border-color: red;
+        }
+        .disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ランダムに選ばれたカード</h1>
+    <button onclick="selectRandomCards()">ランダムに5枚選ぶ</button>
+    <button id="replaceButton" onclick="replaceSelectedCards()">選択したカードを入れ替える (あと2回)</button>
+    <div id="selectedCards"></div>
+    <h2 id="result">ここに役が表示されます</h2>
+
+    <script>
+        let selectedCardsArray = [];  // 現在表示されているカード
+        let selectedIndices = [];     // ユーザーが選択したカードのインデックス
+        let usedCards = new Set();    // すでに選ばれたカード
+        let replaceCount = 0;         // 入れ替え回数
+        const maxReplaces = 2;        // 入れ替え可能回数
+
+        function createDeck() {
+            const suits = ['C', 'H', 'D', 'S'];
+            const values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'];
+            const deck = [];
+
+            suits.forEach(suit => {
+                values.forEach(value => {
+                    deck.push({ suit, value });
+                });
+            });
+
+            return deck;
+        }
+
+        function selectRandomCards() {
+            const deck = createDeck();
+            selectedCardsArray = [];
+            usedCards.clear();
+            selectedIndices = []; // 選択状態をリセット
+
+            replaceCount = 0; // 入れ替え回数をリセット
+            updateReplaceButton(); // 入れ替えボタンの状態をリセット
+
+            while (selectedCardsArray.length < 5) {
+                const randomIndex = Math.floor(Math.random() * deck.length);
+                const randomCard = deck[randomIndex];
+                const cardKey = `${randomCard.suit}-${randomCard.value}`;
+                if (!usedCards.has(cardKey)) {
+                    selectedCardsArray.push(randomCard);
+                    usedCards.add(cardKey); // 使用済みカードとして登録
+                }
+            }
+
+            displaySelectedCards(selectedCardsArray);
+            checkHand(new Set(selectedCardsArray));
+        }
+
+        function displaySelectedCards(cards) {
+            // 値の順にカードをソート（数値で比較）
+            cards.sort((a, b) => parseInt(a.value) - parseInt(b.value));
+
+            const container = document.getElementById("selectedCards");
+            container.innerHTML = '';
+            cards.forEach((card, index) => {
+                const cardElement = document.createElement("img");
+                cardElement.className = 'card';
+                cardElement.src = `file:///C:/プログラミング実験用/chatGPTコピペ/コード用画像（トランプ）/${card.suit}${card.value}.png`;
+                cardElement.alt = `${card.suit}${card.value}`;
+                cardElement.onclick = () => toggleSelectCard(index); // クリック時にカードを選択
+                container.appendChild(cardElement);
+            });
+        }
+
+        function toggleSelectCard(index) {
+            const cardElements = document.getElementsByClassName('card');
+            const cardElement = cardElements[index];
+
+            if (selectedIndices.includes(index)) {
+                // 選択済みの場合、選択解除
+                selectedIndices = selectedIndices.filter(i => i !== index);
+                cardElement.classList.remove('selected');
+            } else {
+                // 新たに選択
+                selectedIndices.push(index);
+                cardElement.classList.add('selected');
+            }
+        }
+
+        function replaceSelectedCards() {
+            if (replaceCount >= maxReplaces) return;
+
+            const deck = createDeck();
+
+            selectedIndices.forEach(index => {
+                let newCard;
+                do {
+                    const randomIndex = Math.floor(Math.random() * deck.length);
+                    newCard = deck[randomIndex];
+                } while (usedCards.has(`${newCard.suit}-${newCard.value}`)); // すでに使われたカードは除外
+                
+                // カードを置き換える
+                selectedCardsArray[index] = newCard;
+                usedCards.add(`${newCard.suit}-${newCard.value}`); // 新しく使ったカードも登録
+            });
+
+            selectedIndices = []; // 選択状態をリセット
+            replaceCount++;       // 入れ替え回数を増加
+            updateReplaceButton(); // ボタン表示更新
+
+            // 入れ替え後にカードをソートして再表示
+            displaySelectedCards(selectedCardsArray);
+            checkHand(new Set(selectedCardsArray));
+        }
+
+        function updateReplaceButton() {
+            const replaceButton = document.getElementById("replaceButton");
+            if (replaceCount >= maxReplaces) {
+                replaceButton.classList.add('disabled');
+                replaceButton.innerText = "選択したカードを入れ替える (入れ替え不可)";
+                replaceButton.disabled = true;
+            } else {
+                replaceButton.classList.remove('disabled');
+                replaceButton.disabled = false;
+                replaceButton.innerText = `選択したカードを入れ替える (あと${maxReplaces - replaceCount}回)`;
+            }
+        }
+
+        function checkHand(selectedCards) {
+            const cards = Array.from(selectedCards); // Setから配列に変換
+            const values = cards.map(card => parseInt(card.value)).sort((a, b) => a - b);
+            const suits = cards.map(card => card.suit);
+
+            // 値の出現回数をカウント
+            const valueCount = {};
+            values.forEach(value => {
+                valueCount[value] = (valueCount[value] || 0) + 1;
+            });
+
+            const counts = Object.values(valueCount);
+            
+            // ストレートのチェック
+            const isStraight = values.every((value, index) => {
+                if (index === 0) return true;
+                return value === values[index - 1] + 1;
+            });
+
+            // フラッシュのチェック
+            const isFlush = suits.every(suit => suit === suits[0]);
+
+            // ストレートフラッシュのチェック
+            const isStraightFlush = isStraight && isFlush;
+
+            // フォーカードのチェック（4枚同じ値）
+            const isFourOfAKind = counts.includes(4);
+
+            // スリーカードのチェック（3枚同じ値）
+            const isThreeOfAKind = counts.includes(3);
+
+            // フルハウスのチェック（3枚同じ値＋2枚同じ値）
+            const isFullHouse = isThreeOfAKind && counts.includes(2);
+
+            // ツーペアのチェック（2枚同じ値のペアが2つ）
+            const isTwoPair = counts.filter(count => count === 2).length === 2;
+
+            // ワンペアのチェック（2枚同じ値のペアが1つ）
+            const isOnePair = counts.includes(2);
+
+            // 結果を表示
+            let resultText = ""; // 表示する結果のテキストを格納する変数
+
+            if (isStraightFlush) {
+                resultText = "ストレートフラッシュ";
+            } else if (isFourOfAKind) {
+                resultText = "フォーカード";
+            } else if (isFullHouse) {
+                resultText = "フルハウス";
+            } else if (isFlush) {
+                resultText = "フラッシュ";
+            } else if (isStraight) {
+                resultText = "ストレート";
+            } else if (isThreeOfAKind) {
+                resultText = "スリーカード";
+            } else if (isTwoPair) {
+                resultText = "ツーペア";
+            } else if (isOnePair) {
+                resultText = "ワンペア";
+            } else {
+                resultText = "役なし";
+            }
+
+            // HTML要素に結果を反映
+            const resultContainer = document.getElementById("result");
+            resultContainer.textContent = resultText;
+        }
+
+    </script>
+
+</body>
+</html>
+
